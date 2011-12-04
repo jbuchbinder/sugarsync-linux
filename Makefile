@@ -7,6 +7,10 @@ PKGS= \
 	--pkg libsoup-2.4 \
 	--pkg sqlite3
 
+DAEMON_SOURCES= \
+	sugarsync-api.vala \
+	sugarsync-daemon.vala
+
 all: clean sugarsync-daemon
 
 clean:
@@ -14,5 +18,5 @@ clean:
 
 sugarsync-daemon:
 	@echo "Building $@ ... "
-	@valac $(PKGS) -o $@ sugarsync-daemon.vala
+	@valac $(PKGS) -o $@ $(DAEMON_SOURCES)
 

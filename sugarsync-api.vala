@@ -9,7 +9,7 @@ using GLib;
 using Posix;
 using Soup;
 
-class SugarsyncApi {
+namespace Sugarsync.Api {
 
     public static const string API_ACCESS_KEY = "MTkzMTEzMDEzMTk4MDQ4OTExMDc";
     public static const string API_PRIVATE_KEY = "NmZiMTc5NTQ5YjM4NDU5ODk2ODQ4Yjc3ZTY4ZGU1YjA";
@@ -19,7 +19,9 @@ class SugarsyncApi {
     public static const string FOLDER_REPRESENTATION_URL = "https://api.sugarsync.com/folder/myfolder";
     public static const string FOLDER_CREATE_URL = "https://api.sugarsync.com/folder/myfolder";
 
-    class FolderRepresentation {
+    public static const string USER_URL = "https://api.sugarsync.com/user";
+
+    public class FolderRepresentation : GLib.Object {
         public string timeCreated { get; set construct; }
         public string parent { get; set construct; }
         public string collections { get; set construct; }
@@ -27,7 +29,15 @@ class SugarsyncApi {
         public string contents { get; set construct; }
     } // end class FolderRepresentation
 
-    protected static string get_auth_token_request ( string username, string password ) {
+    public class UserInfo : GLib.Object {
+        public string username { get; set construct; }
+        public string nickname { get; set construct; }
+        public string workspaces { get; set construct; }
+        public string syncfolders { get; set construct; }
+        public string albums { get; set construct; }
+    } // end class UserInfo
+
+    public static string get_auth_token_request ( string username, string password ) {
         return "<?xml version=\"1.0\" encoding=\"UTF-8\" ?>" +
             "<authRequest>" +
             "<username>" + username + "</username>" +
@@ -55,14 +65,46 @@ class SugarsyncApi {
      * Make an API request. Does no pre or post processing, and should
      * not be used externally -- merely a convenience method.
      */
-    protected static string? api_request ( string auth_token, string request_type, string url, string body ) {
+    public static string? api_request ( string auth_token, string request_type, string url, string? body ) {
         var session = new Soup.SessionAsync ();
         var message = new Soup.Message ( request_type, url );
         message.request_headers.append( "Authorization", auth_token );
-        message.set_request( "application/xml", MemoryUse.COPY, body.data );
+        if (body != null) {
+            message.set_request( "application/xml", MemoryUse.COPY, body.data );
+        }
         session.send_message( message );
-        return message.response_body.data;
+        return (string) message.response_body.data;
     } // end api_request
+
+    public static string? get_xml_element_string ( string xml, string element ) {
+        bool isElement = false;
+        string found = null;
+        MarkupParser markupParser = { 
+            (context, element_name, attribute_names, attribute_values) => {
+                if (element_name == element) {
+                    isElement = true;
+                }
+            }, 
+            (con, el) => {
+                isElement = false;
+            }, 
+            (con, text, text_len ) => {
+                if (isElement) {
+                    found = text;
+                }
+            }, null // call on non-interpresed text, like comments
+            , null // call on errors
+        };
+        MarkupParseContext parser = new MarkupParseContext 
+                              (markupParser, MarkupParseFlags.TREAT_CDATA_AS_TEXT, null, null);
+        try {
+            parser.parse( xml, xml.length );
+            parser.end_parse();
+        } catch (MarkupError ex) {
+            syslog(LOG_ERR, "Error: %s\n", ex.message);
+        }
+        return found;
+    } // end get_xml_element_string
 
     public void create_folder ( string auth_token, string display_name ) {
         string request = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" +
@@ -73,5 +115,17 @@ class SugarsyncApi {
         Posix.syslog(LOG_DEBUG, response);
     } // end create_folder
 
-} // end class SugarsyncApi
+    public static UserInfo? user_info ( string auth_token ) {
+        string raw_xml = api_request ( auth_token, "GET", USER_URL, null );
+        if (raw_xml == null) { return null; }
+        UserInfo r = new UserInfo();
+        r.username = get_xml_element_string ( raw_xml, "username" );
+        r.nickname = get_xml_element_string ( raw_xml, "nickname" );
+        r.workspaces = get_xml_element_string ( raw_xml, "workspaces" );
+        r.syncfolders = get_xml_element_string ( raw_xml, "syncfolders" );
+        r.albums = get_xml_element_string ( raw_xml, "albums" );
+        return r;
+    } // end user_info
+
+} // end namespace Sugarsync.Api
 

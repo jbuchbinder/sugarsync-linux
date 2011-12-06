@@ -5,9 +5,11 @@
  * vim: tabstop=4:softtabstop=4:shiftwidth=4:expandtab
  */
 
+using Gee;
 using GLib;
 using Posix;
 using Soup;
+using Xml;
 
 namespace Sugarsync.Api {
 
@@ -29,11 +31,93 @@ namespace Sugarsync.Api {
         public string contents { get; set construct; }
     } // end class FolderRepresentation
 
-    public class Workspace : GLib.Object {
+    public class Collection : Object {
+
+    } // end class Collection
+
+    public class ContentCollection : Object {
+        public ArrayList<Sugarsync.Api.Collection> collection { get; set construct; }
+        public int start { get; set construct; }
+        public bool hasMore { get; set construct; }
+        public int end { get; set construct; }
+        public string contentType { get; set construct; }
+    } // end class ContentCollection
+
+    public class Workspace : Object {
         public string displayName { get; set construct; }
         public string refValue { get; set construct; }
         public string iconId { get; set construct; }
         public string contents { get; set construct; }
+
+        public static int currentWorkspaceItem = 0;
+        public static ArrayList<Workspace> workspaceItems = new ArrayList<Workspace>();
+        public static Workspace curItem = null;
+
+        public Workspace() { }
+
+        public static ArrayList<Workspace> list_from_xml(string xml) { 
+            print("Parse: %s\n", xml);
+            Xml.Doc* xml_doc = Parser.parse_memory(xml, xml.length);
+            if (xml_doc == null) {
+                print("Could not parse\n");
+                return (ArrayList<Workspace>) null;
+            }
+ 
+            // Get the root node. notice the dereferencing operator -> instead of .
+            Xml.Node* root_node = xml_doc->get_root_element ();
+            if (root_node == null) {
+                // Free the document manually before throwing because the garbage collector can't work on pointers
+                delete xml_doc;
+                print("Could not parse, empty\n");
+                return (ArrayList<Workspace>) null;
+            }
+            currentWorkspaceItem = 0;
+            workspaceItems = new ArrayList<Workspace>();
+            parse_node(root_node);
+            delete xml_doc;
+
+            return workspaceItems;
+        }
+
+        protected static void parse_node (Xml.Node* node) {
+            for (Xml.Node* iter = node->children; iter != null; iter = iter->next) {
+                // Space == node, discard
+                if (iter->type != ElementType.ELEMENT_NODE)
+                    continue;
+                string node_name = iter->name;
+                string node_content = iter->get_content ();
+
+                if (curItem == null) {
+                    curItem = new Workspace();
+                }
+
+                switch (node_name) {
+                    case "displayName":
+                        curItem.displayName = node_content;
+                        break;
+                    case "ref":
+                        curItem.refValue = node_content;
+                        break;
+                    case "iconId":
+                        curItem.iconId = node_content;
+                        break;
+                    case "contents":
+                        curItem.contents = node_content;
+                        break;
+                    default:
+                        syslog(LOG_DEBUG, "element %s not handled\n", node_name);
+                        break;
+                }
+
+                // Followed by its children nodes
+                parse_node(iter);
+
+                if (node_name == "collection") {
+                    workspaceItems.add(curItem);
+                    curItem = null;
+                }
+            }
+        }
 
         public string to_string () {
             return "Sugarsync.Api.Workspace[" +
@@ -51,14 +135,78 @@ namespace Sugarsync.Api {
         public string workspaces { get; set construct; }
         public string syncfolders { get; set construct; }
         public string albums { get; set construct; }
+        public string publicLinks { get; set construct; }
+        public string mobilePhotos { get; set construct; }
+
+        public UserInfo.from_xml(string xml) { 
+            Xml.Doc* xml_doc = Parser.parse_memory(xml, xml.length);
+            if (xml_doc == null) {
+                print("Could not parse\n");
+                return;
+            }
+ 
+            // Get the root node. notice the dereferencing operator -> instead of .
+            Xml.Node* root_node = xml_doc->get_root_element ();
+            if (root_node == null) {
+                // Free the document manually before throwing because the garbage collector can't work on pointers
+                delete xml_doc;
+                print("Could not parse, empty\n");
+                return;
+            }
+            parse_node(root_node);
+            delete xml_doc;
+        }
+
+        protected void parse_node (Xml.Node* node) {
+            for (Xml.Node* iter = node->children; iter != null; iter = iter->next) {
+                // Space == node, discard
+                if (iter->type != ElementType.ELEMENT_NODE)
+                    continue;
+                string node_name = iter->name;
+                string node_content = iter->get_content ();
+
+                switch (node_name) {
+                    case "username":
+                        this.username = node_content;
+                        break;
+                    case "nickname":
+                        this.nickname = node_content;
+                        break;
+                    case "workspaces":
+                        this.workspaces = node_content;
+                        break;
+                    case "syncfolders":
+                        this.syncfolders = node_content;
+                        break;
+                    case "albums":
+                        this.albums = node_content;
+                        break;
+                    case "publicLinks":
+                        this.publicLinks = node_content;
+                        break;
+                    case "mobilePhotos":
+                        this.mobilePhotos = node_content;
+                        break;
+                    default:
+                        syslog(LOG_DEBUG, "element %s not handled\n", node_name);
+                        break;
+                }
+
+                // Followed by its children nodes
+                parse_node(iter);
+            }
+        }
 
         public string to_string () {
             return "Sugarsync.Api.UserInfo[" +
-                "username=" + ( username != null ? username : "null" ) + "," +
-                "nickname=" + ( nickname != null ? nickname : "null" ) + "," +
-                "workspaces=" + ( workspaces != null ? workspaces : "null" ) + "," +
-                "syncfolders=" + ( syncfolders != null ? syncfolders : "null" ) + "," +
-                "albums=" + ( albums != null ? albums : "null" ) + "]";
+                "username=" + ( username != null ? username : "null" ) +
+                ",nickname=" + ( nickname != null ? nickname : "null" ) +
+                ",workspaces=" + ( workspaces != null ? workspaces : "null" ) +
+                ",syncfolders=" + ( syncfolders != null ? syncfolders : "null" ) +
+                ",albums=" + ( albums != null ? albums : "null" ) +
+                ",publicLinks=" + ( publicLinks != null ? publicLinks : "null" ) +
+                ",mobilePhotos=" + ( mobilePhotos != null ? mobilePhotos : "null" ) +
+                "]";
         }
 
     } // end class UserInfo
@@ -148,141 +296,15 @@ namespace Sugarsync.Api {
     public static UserInfo? user_info ( string auth_token ) {
         string xml = api_request ( auth_token, "GET", USER_URL, null );
         if (xml == null) { return null; }
-        UserInfo r = new UserInfo();
-        int currentElement = 0;
-        MarkupParser markupParser = { 
-            (context, element_name, attribute_names, attribute_values) => {
-                switch (element_name) {
-                    case "username":
-                        print("username found\n");
-                        currentElement = 1;
-                        break;
-                    case "nickname":
-                        print("nickname found\n");
-                        currentElement = 2;
-                        break;
-                    case "workspaces":
-                        print("workspaces found\n");
-                        currentElement = 3;
-                        break;
-                    case "syncfolders":
-                        print("syncfolders found\n");
-                        currentElement = 4;
-                        break;
-                    case "albums":
-                        print("albums found\n");
-                        currentElement = 5;
-                        break;
-                    default:
-                        print("element %s not found\n", element_name);
-                        currentElement = 0;
-                        break;
-                }
-            }, 
-            (con, el) => {
-                print ("end()\n");
-                currentElement = 0;
-            }, 
-            (con, text, text_len) => {
-                print ("text(%s)\n", text);
-                switch (currentElement) {
-                    case 1:
-                        r.username = text;
-                        break;
-                    case 2:
-                        r.nickname = text;
-                        break;
-                    case 3:
-                        r.workspaces = text;
-                        break;
-                    case 4:
-                        r.syncfolders = text;
-                        break;
-                    case 5:
-                        r.albums = text;
-                        break;
-                    case 0:
-                    default:
-                        break;
-                }
-            }, null // call on non-interpresed text, like comments
-            , null // call on errors
-        };
-        MarkupParseContext parser = new MarkupParseContext 
-                              (markupParser,  MarkupParseFlags.TREAT_CDATA_AS_TEXT, r, null);
-        try {
-            parser.parse( xml, xml.length );
-            parser.end_parse();
-        } catch (MarkupError ex) {
-            syslog(LOG_ERR, "Error: %s\n", ex.message);
-        }
-
+        UserInfo r = new UserInfo.from_xml(xml);
         return r;
     } // end user_info
 
-    public static Workspace[]? workspace_list ( string auth_token, UserInfo user_info ) {
+    public static ArrayList<Workspace>? workspace_list ( string auth_token, UserInfo user_info ) {
         var workspace_url = user_info.workspaces;
         string xml = api_request ( auth_token, "GET", workspace_url, null );
         if (xml == null) { return null; }
-        Workspace[] wl = {};
-
-        int iter = 0;
-        int currentElement = 0;
-        MarkupParser markupParser = { 
-            (context, element_name, attribute_names, attribute_values) => {
-                switch (element_name) {
-                    case "displayName":
-                        currentElement = 1;
-                        break;
-                    case "ref":
-                        currentElement = 2;
-                        break;
-                    case "iconId":
-                        currentElement = 3;
-                        break;
-                    case "contents":
-                        currentElement = 4;
-                        break;
-                    default:
-                        currentElement = 0;
-                        break;
-                }
-            }, 
-            (con, el) => {
-                if (el == "workspace") {
-                    iter++;
-                }
-                currentElement = 0;
-            }, 
-            (con, text, text_len ) => {
-                switch (currentElement) {
-                    case 1:
-                        wl[iter].displayName = text;
-                        break;
-                    case 2:
-                        wl[iter].refValue = text;
-                        break;
-                    case 3:
-                        wl[iter].iconId = text;
-                        break;
-                    case 4:
-                        wl[iter].contents = text;
-                        break;
-                    default:
-                        break;
-                }
-            }, null // call on non-interpresed text, like comments
-            , null // call on errors
-        };
-        MarkupParseContext parser = new MarkupParseContext 
-                              (markupParser, MarkupParseFlags.TREAT_CDATA_AS_TEXT, null, null);
-        try {
-            parser.parse( xml, xml.length );
-            parser.end_parse();
-        } catch (MarkupError ex) {
-            syslog(LOG_ERR, "Error: %s\n", ex.message);
-        }
-
+        ArrayList<Workspace> wl = Workspace.list_from_xml(xml);
         return wl;
     } // end workspace_list
 

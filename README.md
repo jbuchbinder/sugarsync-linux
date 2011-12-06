@@ -17,8 +17,8 @@ COMPILING
 
 `make`: it's about as easy as it gets. ;)
 
-It needs a recent copy of Vala with the SQLite and Soup 2.4 VAPI
-bindings. If you're using Debian/Ubuntu or a derivative, it's as easy as
-`sudo apt-get install valac-0.14`. There are no crazy external
-dependencies at the moment.
+It needs a recent copy of Vala with a few extra bindings.  If you're
+using Debian/Ubuntu or a derivative, it's as easy as
+`sudo apt-get install valac-0.14 libgee-dev libsoup2.4-dev libxml2-dev`.
+There aren't a lot of crazy external dependencies at the moment.
 

@@ -9,6 +9,7 @@ PKGS= \
 
 DAEMON_SOURCES= \
 	sugarsync-api.vala \
+	sugarsync-db.vala \
 	sugarsync-daemon.vala
 
 all: clean sugarsync-daemon

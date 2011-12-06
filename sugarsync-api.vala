@@ -29,12 +29,38 @@ namespace Sugarsync.Api {
         public string contents { get; set construct; }
     } // end class FolderRepresentation
 
+    public class Workspace : GLib.Object {
+        public string displayName { get; set construct; }
+        public string refValue { get; set construct; }
+        public string iconId { get; set construct; }
+        public string contents { get; set construct; }
+
+        public string to_string () {
+            return "Sugarsync.Api.Workspace[" +
+                "displayName=" + ( displayName != null ? displayName : "null" ) + "," +
+                "ref=" + ( refValue != null ? refValue : "null" ) + "," +
+                "iconId=" + ( iconId != null ? iconId : "null" ) + "," +
+                "contents=" + ( contents != null ? contents : "null" ) + "]";
+        }
+
+    } // end class Workspace
+
     public class UserInfo : GLib.Object {
         public string username { get; set construct; }
         public string nickname { get; set construct; }
         public string workspaces { get; set construct; }
         public string syncfolders { get; set construct; }
         public string albums { get; set construct; }
+
+        public string to_string () {
+            return "Sugarsync.Api.UserInfo[" +
+                "username=" + ( username != null ? username : "null" ) + "," +
+                "nickname=" + ( nickname != null ? nickname : "null" ) + "," +
+                "workspaces=" + ( workspaces != null ? workspaces : "null" ) + "," +
+                "syncfolders=" + ( syncfolders != null ? syncfolders : "null" ) + "," +
+                "albums=" + ( albums != null ? albums : "null" ) + "]";
+        }
+
     } // end class UserInfo
 
     public static string get_auth_token_request ( string username, string password ) {
@@ -81,14 +107,18 @@ namespace Sugarsync.Api {
         string found = null;
         MarkupParser markupParser = { 
             (context, element_name, attribute_names, attribute_values) => {
+                print("element_name = %s\n", element_name);
                 if (element_name == element) {
                     isElement = true;
                 }
+                print("end element name find\n");
             }, 
             (con, el) => {
+                print("end element el = %s\n", el);
                 isElement = false;
             }, 
             (con, text, text_len ) => {
+                print("text = %s\n", text);
                 if (isElement) {
                     found = text;
                 }
@@ -116,16 +146,145 @@ namespace Sugarsync.Api {
     } // end create_folder
 
     public static UserInfo? user_info ( string auth_token ) {
-        string raw_xml = api_request ( auth_token, "GET", USER_URL, null );
-        if (raw_xml == null) { return null; }
+        string xml = api_request ( auth_token, "GET", USER_URL, null );
+        if (xml == null) { return null; }
         UserInfo r = new UserInfo();
-        r.username = get_xml_element_string ( raw_xml, "username" );
-        r.nickname = get_xml_element_string ( raw_xml, "nickname" );
-        r.workspaces = get_xml_element_string ( raw_xml, "workspaces" );
-        r.syncfolders = get_xml_element_string ( raw_xml, "syncfolders" );
-        r.albums = get_xml_element_string ( raw_xml, "albums" );
+        int currentElement = 0;
+        MarkupParser markupParser = { 
+            (context, element_name, attribute_names, attribute_values) => {
+                switch (element_name) {
+                    case "username":
+                        print("username found\n");
+                        currentElement = 1;
+                        break;
+                    case "nickname":
+                        print("nickname found\n");
+                        currentElement = 2;
+                        break;
+                    case "workspaces":
+                        print("workspaces found\n");
+                        currentElement = 3;
+                        break;
+                    case "syncfolders":
+                        print("syncfolders found\n");
+                        currentElement = 4;
+                        break;
+                    case "albums":
+                        print("albums found\n");
+                        currentElement = 5;
+                        break;
+                    default:
+                        print("element %s not found\n", element_name);
+                        currentElement = 0;
+                        break;
+                }
+            }, 
+            (con, el) => {
+                print ("end()\n");
+                currentElement = 0;
+            }, 
+            (con, text, text_len) => {
+                print ("text(%s)\n", text);
+                switch (currentElement) {
+                    case 1:
+                        r.username = text;
+                        break;
+                    case 2:
+                        r.nickname = text;
+                        break;
+                    case 3:
+                        r.workspaces = text;
+                        break;
+                    case 4:
+                        r.syncfolders = text;
+                        break;
+                    case 5:
+                        r.albums = text;
+                        break;
+                    case 0:
+                    default:
+                        break;
+                }
+            }, null // call on non-interpresed text, like comments
+            , null // call on errors
+        };
+        MarkupParseContext parser = new MarkupParseContext 
+                              (markupParser,  MarkupParseFlags.TREAT_CDATA_AS_TEXT, r, null);
+        try {
+            parser.parse( xml, xml.length );
+            parser.end_parse();
+        } catch (MarkupError ex) {
+            syslog(LOG_ERR, "Error: %s\n", ex.message);
+        }
+
         return r;
     } // end user_info
+
+    public static Workspace[]? workspace_list ( string auth_token, UserInfo user_info ) {
+        var workspace_url = user_info.workspaces;
+        string xml = api_request ( auth_token, "GET", workspace_url, null );
+        if (xml == null) { return null; }
+        Workspace[] wl = {};
+
+        int iter = 0;
+        int currentElement = 0;
+        MarkupParser markupParser = { 
+            (context, element_name, attribute_names, attribute_values) => {
+                switch (element_name) {
+                    case "displayName":
+                        currentElement = 1;
+                        break;
+                    case "ref":
+                        currentElement = 2;
+                        break;
+                    case "iconId":
+                        currentElement = 3;
+                        break;
+                    case "contents":
+                        currentElement = 4;
+                        break;
+                    default:
+                        currentElement = 0;
+                        break;
+                }
+            }, 
+            (con, el) => {
+                if (el == "workspace") {
+                    iter++;
+                }
+                currentElement = 0;
+            }, 
+            (con, text, text_len ) => {
+                switch (currentElement) {
+                    case 1:
+                        wl[iter].displayName = text;
+                        break;
+                    case 2:
+                        wl[iter].refValue = text;
+                        break;
+                    case 3:
+                        wl[iter].iconId = text;
+                        break;
+                    case 4:
+                        wl[iter].contents = text;
+                        break;
+                    default:
+                        break;
+                }
+            }, null // call on non-interpresed text, like comments
+            , null // call on errors
+        };
+        MarkupParseContext parser = new MarkupParseContext 
+                              (markupParser, MarkupParseFlags.TREAT_CDATA_AS_TEXT, null, null);
+        try {
+            parser.parse( xml, xml.length );
+            parser.end_parse();
+        } catch (MarkupError ex) {
+            syslog(LOG_ERR, "Error: %s\n", ex.message);
+        }
+
+        return wl;
+    } // end workspace_list
 
 } // end namespace Sugarsync.Api
 

@@ -32,35 +32,27 @@ namespace Sugarsync.Api {
     } // end class FolderRepresentation
 
     public class Collection : Object {
+        public enum CollectionType {
+              UNKNOWN
+            , SYNC_FOLDER
+            , WORKSPACE
+        }
 
-    } // end class Collection
-
-    public class ContentCollection : Object {
-        public ArrayList<Sugarsync.Api.Collection> collection { get; set construct; }
-        public int start { get; set construct; }
-        public bool hasMore { get; set construct; }
-        public int end { get; set construct; }
-        public string contentType { get; set construct; }
-    } // end class ContentCollection
-
-    public class Workspace : Object {
+        public CollectionType contentType { get; set construct; }
         public string displayName { get; set construct; }
         public string refValue { get; set construct; }
         public string iconId { get; set construct; }
         public string contents { get; set construct; }
 
-        public static int currentWorkspaceItem = 0;
-        public static ArrayList<Workspace> workspaceItems = new ArrayList<Workspace>();
-        public static Workspace curItem = null;
+        protected static ArrayList<Collection> items = new ArrayList<Collection>();
+        protected static Collection curItem = null;
 
-        public Workspace() { }
-
-        public static ArrayList<Workspace> list_from_xml(string xml) { 
+        public static ArrayList<Collection> list_from_xml(string xml) { 
             print("Parse: %s\n", xml);
             Xml.Doc* xml_doc = Parser.parse_memory(xml, xml.length);
             if (xml_doc == null) {
                 print("Could not parse\n");
-                return (ArrayList<Workspace>) null;
+                return (ArrayList<Collection>) null;
             }
  
             // Get the root node. notice the dereferencing operator -> instead of .
@@ -69,15 +61,14 @@ namespace Sugarsync.Api {
                 // Free the document manually before throwing because the garbage collector can't work on pointers
                 delete xml_doc;
                 print("Could not parse, empty\n");
-                return (ArrayList<Workspace>) null;
+                return (ArrayList<Collection>) null;
             }
-            currentWorkspaceItem = 0;
-            workspaceItems = new ArrayList<Workspace>();
+            items = new ArrayList<Collection>();
             parse_node(root_node);
             delete xml_doc;
 
-            return workspaceItems;
-        }
+            return items;
+        } // end list_from_xml
 
         protected static void parse_node (Xml.Node* node) {
             for (Xml.Node* iter = node->children; iter != null; iter = iter->next) {
@@ -88,7 +79,7 @@ namespace Sugarsync.Api {
                 string node_content = iter->get_content ();
 
                 if (curItem == null) {
-                    curItem = new Workspace();
+                    curItem = new Collection();
                 }
 
                 switch (node_name) {
@@ -105,29 +96,56 @@ namespace Sugarsync.Api {
                         curItem.contents = node_content;
                         break;
                     default:
-                        syslog(LOG_DEBUG, "element %s not handled\n", node_name);
+                        syslog(LOG_DEBUG, "collection element %s not handled\n", node_name);
+                        print("collection element %s not handled\n", node_name);
                         break;
                 }
+
 
                 // Followed by its children nodes
                 parse_node(iter);
 
                 if (node_name == "collection") {
-                    workspaceItems.add(curItem);
+                    for (Xml.Attr* prop = iter->properties; prop != null; prop = prop->next) {
+                        string attr_name = prop->name;
+                        string attr_content = prop->children->content;
+                        if (attr_name == "type") {
+                            switch (attr_content) {
+                                case "syncFolder":
+                                    curItem.contentType = CollectionType.SYNC_FOLDER;
+                                    break;
+                                case "workspace":
+                                    curItem.contentType = CollectionType.WORKSPACE;
+                                    break;
+                                default:
+                                    curItem.contentType = CollectionType.UNKNOWN;
+                                    break;
+                            }
+                        }
+                    }
+                    items.add(curItem);
                     curItem = null;
                 }
             }
-        }
+        } // end parse_node
 
         public string to_string () {
-            return "Sugarsync.Api.Workspace[" +
+            return "Sugarsync.Api.Collection[" +
+                "contentType=" + contentType.to_string() + "," +
                 "displayName=" + ( displayName != null ? displayName : "null" ) + "," +
                 "ref=" + ( refValue != null ? refValue : "null" ) + "," +
                 "iconId=" + ( iconId != null ? iconId : "null" ) + "," +
                 "contents=" + ( contents != null ? contents : "null" ) + "]";
-        }
+        } // end to_string
 
-    } // end class Workspace
+    } // end class Collection
+
+    public class CollectionContent : Object {
+        public ArrayList<Sugarsync.Api.Collection> collection { get; set construct; }
+        public int start { get; set construct; }
+        public bool hasMore { get; set construct; }
+        public int end { get; set construct; }
+    } // end class CollectionContent
 
     public class UserInfo : GLib.Object {
         public string username { get; set construct; }
@@ -300,12 +318,15 @@ namespace Sugarsync.Api {
         return r;
     } // end user_info
 
-    public static ArrayList<Workspace>? workspace_list ( string auth_token, UserInfo user_info ) {
-        var workspace_url = user_info.workspaces;
-        string xml = api_request ( auth_token, "GET", workspace_url, null );
+    public static ArrayList<Sugarsync.Api.Collection>? collections_list ( string auth_token, string url ) {
+        string xml = api_request ( auth_token, "GET", url, null );
         if (xml == null) { return null; }
-        ArrayList<Workspace> wl = Workspace.list_from_xml(xml);
-        return wl;
+        ArrayList<Sugarsync.Api.Collection> l = Sugarsync.Api.Collection.list_from_xml(xml);
+        return l;
+    } // end collections_list
+
+    public static ArrayList<Sugarsync.Api.Collection>? workspace_list ( string auth_token, UserInfo user_info ) {
+        return collections_list( auth_token, user_info.workspaces );
     } // end workspace_list
 
 } // end namespace Sugarsync.Api

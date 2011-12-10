@@ -166,24 +166,22 @@ namespace Sugarsync.Api {
 
                     // Followed by its children nodes
                     passed_parser(iter, passed_parser);
+                }
 
-                    if (node_name == "collection") {
-                        for (Xml.Attr* prop = iter->properties; prop != null; prop = prop->next) {
-                            string attr_name = prop->name;
-                            string attr_content = prop->children->content;
-                            if (attr_name == "type") {
-                                switch (attr_content) {
-                                    case "syncFolder":
-                                        curItem.contentType = CollectionType.SYNC_FOLDER;
-                                        break;
-                                    case "workspace":
-                                        curItem.contentType = CollectionType.WORKSPACE;
-                                        break;
-                                    default:
-                                        curItem.contentType = CollectionType.UNKNOWN;
-                                        break;
-                                }
-                            }
+                for (Xml.Attr* prop = node->properties; prop != null; prop = prop->next) {
+                    string attr_name = prop->name;
+                    string attr_content = prop->children->content;
+                    if (attr_name == "type") {
+                        switch (attr_content) {
+                            case "syncFolder":
+                                curItem.contentType = CollectionType.SYNC_FOLDER;
+                                break;
+                            case "workspace":
+                                curItem.contentType = CollectionType.WORKSPACE;
+                                break;
+                            default:
+                                curItem.contentType = CollectionType.UNKNOWN;
+                                break;
                         }
                     }
                 }

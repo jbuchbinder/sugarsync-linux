@@ -35,16 +35,25 @@ namespace Sugarsync.Test {
         Sugarsync.Api.UserInfo user = Sugarsync.Api.user_info( auth );
         print("user info = %s\n", user.to_string());
         print("Api.workspace_list\n");
-        ArrayList<Sugarsync.Api.Collection> w = Sugarsync.Api.workspace_list( auth, user );
+        ArrayList<Sugarsync.Api.SyncObject> w = Sugarsync.Api.workspace_list( auth, user );
         print("length = %d\n", w.size);
         int count = 0;
-        foreach ( Sugarsync.Api.Collection this_ws in w) {
+        foreach ( Sugarsync.Api.SyncObject this_ws in w) {
             print("Workspace [ %d ] = %s\n", count, this_ws.to_string());
-            ArrayList<Sugarsync.Api.Collection> fl = Sugarsync.Api.collections_list( auth, this_ws.contents );
-            foreach ( Sugarsync.Api.Collection f in fl) {
-                print(f.to_string());
+            if (this_ws is Sugarsync.Api.Collection) {
+                ArrayList<Sugarsync.Api.SyncObject> fl = Sugarsync.Api.collections_list( auth, (this_ws as Sugarsync.Api.Collection).contents );
+                foreach ( Sugarsync.Api.SyncObject f in fl ) {
+                    print(f.to_string());
+                    if (fl is Sugarsync.Api.Collection) {
+                        ArrayList<Sugarsync.Api.SyncObject> fl2 = Sugarsync.Api.collections_list( auth, (f as Sugarsync.Api.Collection).contents );
+                        foreach ( Sugarsync.Api.SyncObject f2 in fl2 ) {
+                            print(f2.to_string());
+                        }
+                    }
+                    print("\n\n");
+                }
+                count ++;
             }
-            count ++;
         }
     }
 

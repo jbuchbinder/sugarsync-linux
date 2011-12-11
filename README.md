@@ -19,6 +19,6 @@ COMPILING
 
 It needs a recent copy of Vala with a few extra bindings.  If you're
 using Debian/Ubuntu or a derivative, it's as easy as
-`sudo apt-get install valac-0.14 libgee-dev libsoup2.4-dev libxml2-dev`.
+`sudo apt-get install valac-0.14 libgee-dev libsoup2.4-dev libxml2-dev libsqlite3-dev`.
 There aren't a lot of crazy external dependencies at the moment.
 

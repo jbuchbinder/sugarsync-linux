@@ -47,12 +47,22 @@ class SugarsyncDaemon {
     public void init (string[] args) {
         // Initialize globals, no monitors to begin with.
         monitors = {};
+        GLib.File[] monitorPaths = {};
 
-        // TODO: Initialize from configuration, rather than static init
-        GLib.File[] monitorPaths = {
-              File.new_for_path( "/usr/share/applications")
-            , File.new_for_commandline_arg( GLib.Environment.get_user_data_dir() + "/applications" )
-        };
+        KeyFile configFile = new KeyFile();
+        // Read the monitor-paths from the config
+        try {
+                configFile.load_from_file("config.ini", KeyFileFlags.NONE);
+                for(int i=0;; i++) {
+                    if(!configFile.has_key("MonitorPaths", @"path$i"))
+                        break; // stop when the last path is reached.
+                    // add the path to our array
+                    monitorPaths += File.new_for_path(configFile.get_value("MonitorPaths", @"path$i"));
+                }
+        } catch (Error err) {
+                syslog(LOG_ERR, "Error: "+err.message+"\n");
+                return;
+        }
 
         // TODO: Initialize sqlite interface thread so that only one
         // thing is writing/reading to/from the database at one time.

@@ -22,10 +22,25 @@ class SugarsyncDaemon {
         public GLib.FileMonitorEvent event_type { get; set construct; }
     } // end class MonitorAction
 
+    /**
+     * Object to hold paths to be monitored, extracted from the
+     * config.ini (or similar) file.
+     */
+    protected class MonitorPath : GLib.Object {
+        public GLib.File path { get; set construct; }
+        public string s_id { get; set construct; }
+
+        public MonitorPath.from_path ( GLib.File p, string s ) {
+            path = p;
+            s_id = s;
+        }
+    } // end class MonitorPath
+
     // Global variables
     protected GLib.FileMonitor[] monitors = {};
     protected int mIter = 0;
     protected Soup.Server rest_server;
+    protected MonitorPath[] monitorResolution = {};
 
     public static void main (string[] args) {
         // Initialize syslog
@@ -52,16 +67,21 @@ class SugarsyncDaemon {
         KeyFile configFile = new KeyFile();
         // Read the monitor-paths from the config
         try {
-                configFile.load_from_file("config.ini", KeyFileFlags.NONE);
-                for(int i=0;; i++) {
-                    if(!configFile.has_key("MonitorPaths", @"path$i"))
-                        break; // stop when the last path is reached.
-                    // add the path to our array
-                    monitorPaths += File.new_for_path(configFile.get_value("MonitorPaths", @"path$i"));
+            configFile.load_from_file("config.ini", KeyFileFlags.NONE);
+            for ( int i=0;; i++ ) {
+                if ( !configFile.has_key( "MonitorPaths", @"path$i" ) ) {
+                    break; // stop when the last path is reached.
                 }
+
+                // add the path to our array
+                if ( configFile.has_key( "MonitorPaths", @"sid$i" ) ) {
+                    monitorPaths += File.new_for_path( configFile.get_value("MonitorPaths", @"path$i" ) );
+                    monitorResolution += new MonitorPath.from_path( File.new_for_path( configFile.get_value("MonitorPaths", @"path$i" ) ), configFile.get_value("MonitorPaths", @"path$i" ) );
+                }
+            }
         } catch (Error err) {
-                syslog(LOG_ERR, "Error: "+err.message+"\n");
-                return;
+            syslog(LOG_ERR, "Error: " + err.message);
+            return;
         }
 
         // TODO: Initialize sqlite interface thread so that only one

@@ -439,5 +439,42 @@ namespace Sugarsync.Api {
         return collections_list( auth_token, user_info.workspaces );
     } // end workspace_list
 
+    public static bool download_file ( string auth_token, string url, string destination ) {
+        try {
+            var session = new Soup.SessionAsync ();
+            var message = new Soup.Message ( "GET", url );
+            message.request_headers.append( "Authorization", auth_token );
+            session.send_message( message );
+            GLib.File file = GLib.File.new_for_path( destination );
+            var file_stream = file.create( FileCreateFlags.NONE );
+            var data_stream = new DataOutputStream( file_stream );
+            data_stream.put_string( (string) message.response_body.data );
+            return true;
+        } catch (GLib.Error e) {
+            return false;
+        }
+    } // end download_file
+
+    public static bool upload_file ( string auth_token, string folder_url, string file_name, GLib.File file ) {
+        try {
+            var session = new Soup.SessionAsync ();
+            var message = new Soup.Message ( "PUT", folder_url + "/" + file_name );
+            message.request_headers.append( "Authorization", auth_token );
+            DataInputStream dis = new DataInputStream( file.read() );
+            uint8[] data = { };
+            string line;
+            while ( (line = dis.read_line(null)) != null ) {
+                foreach ( uint8 ch in line.data ) {
+                    data += ch;
+                }
+            }
+            message.request_body.append(Soup.MemoryUse.TEMPORARY, data);
+            session.send_message( message );
+        } catch (GLib.Error e) {
+            return false;
+        }
+        return true;
+    } // end upload_file
+
 } // end namespace Sugarsync.Api
 
